@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '60m', '1d', '1wk', '1mo'];
-
+const YAHOO_API_BASE = import.meta.env.VITE_YAHOO_API_BASE || '/api/yahoo';
 const DATE_TIME_FORMATTER_CACHE = new Map();
 
 function getFormatter(timeZone) {
@@ -123,7 +123,7 @@ function App() {
         events: 'div,splits',
       });
 
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+      const url = `${YAHOO_API_BASE}/v8/finance/chart/${encodeURIComponent(
         symbol.trim().toUpperCase()
       )}?${query.toString()}`;
 
@@ -159,7 +159,11 @@ function App() {
       setRows(parsed);
     } catch (err) {
       setRows([]);
-      setError(err instanceof Error ? err.message : 'Unknown error while fetching data.');
+      setError(
+        err instanceof Error
+          ? `${err.message} If this is a CORS issue in production, deploy with the provided proxy rules or set VITE_YAHOO_API_BASE to your server endpoint.`
+          : 'Unknown error while fetching data.'
+      );
     } finally {
       setLoading(false);
     }
@@ -232,7 +236,7 @@ function App() {
               <ComposedChart data={rows} margin={{ top: 20, right: 20, left: 0, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="timestamp" minTickGap={48} />
-                <YAxis domain={["dataMin", "dataMax"]} />
+                <YAxis domain={['dataMin', 'dataMax']} />
                 <Tooltip />
                 <Bar dataKey="high" barSize={2} fill="#64748b" />
                 <Bar dataKey="low" barSize={2} fill="#64748b" />
