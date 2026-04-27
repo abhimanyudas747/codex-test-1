@@ -12,13 +12,62 @@ import {
 
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '60m', '1d', '1wk', '1mo'];
 const YAHOO_API_BASE = import.meta.env.VITE_YAHOO_API_BASE || '/api/yahoo';
+const DATE_TIME_FORMATTER_CACHE = new Map();
+
+function getFormatter(timeZone) {
+  if (!DATE_TIME_FORMATTER_CACHE.has(timeZone)) {
+    DATE_TIME_FORMATTER_CACHE.set(
+      timeZone,
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      })
+    );
+  }
+  return DATE_TIME_FORMATTER_CACHE.get(timeZone);
+}
+
+function getTimeZoneOffsetMs(epochMs, timeZone) {
+  const parts = getFormatter(timeZone).formatToParts(new Date(epochMs));
+  const values = {};
+  parts.forEach((part) => {
+    if (part.type !== 'literal') values[part.type] = Number(part.value);
+  });
+
+  const asUtc = Date.UTC(
+    values.year,
+    values.month - 1,
+    values.day,
+    values.hour,
+    values.minute,
+    values.second
+  );
+
+  return asUtc - epochMs;
+}
 
 function toUnixSeconds(dateString, timeZone, endOfDay = false) {
-  const base = `${dateString}T${endOfDay ? '23:59:59' : '00:00:00'}`;
-  const date = new Date(base);
-  const shifted = new Date(date.toLocaleString('en-US', { timeZone }));
-  const diffMs = shifted.getTime() - date.getTime();
-  return Math.floor((date.getTime() - diffMs) / 1000);
+  const [year, month, day] = dateString.split('-').map(Number);
+  const hours = endOfDay ? 23 : 0;
+  const minutes = endOfDay ? 59 : 0;
+  const seconds = endOfDay ? 59 : 0;
+  const naiveUtc = Date.UTC(year, month - 1, day, hours, minutes, seconds);
+
+  let zonedEpoch = naiveUtc;
+  for (let i = 0; i < 3; i += 1) {
+    const offset = getTimeZoneOffsetMs(zonedEpoch, timeZone);
+    const next = naiveUtc - offset;
+    if (next === zonedEpoch) break;
+    zonedEpoch = next;
+  }
+
+  return Math.floor(zonedEpoch / 1000);
 }
 
 function buildCsv(rows) {
